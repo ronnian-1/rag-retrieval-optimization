@@ -15,3 +15,7 @@ venv/
 
 # Temp
 temp/
+
+# Local environment freeze
+requirements.txt
+requirements_docker_freeze.txt
