@@ -22,7 +22,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from fastapi import HTTPException,APIRouter,Body,UploadFile,File,Form
 from db_server.base import session
 from db_server.knowledge_base_repository import add_kb_to_db,del_kb_from_db
-from configs.settings import KB_DIR,FILE_STORAGE_DIR,embedding_model_path
+from configs.settings import KB_DIR,FILE_STORAGE_DIR,embedding_model_path,api_key,base_url,embedding_model_name
 import os
 
 from langchain_community.document_loaders import TextLoader
@@ -50,13 +50,13 @@ class CustomEmbeddingModel(Embeddings):
 # openaiembedding类来创建一个嵌入模型实例，用于将文本嵌入为向量
 # 创建的embedding对象可以用于将文本转换为向量表示。这些向量捕捉了文本的语义信息，可以用于计算文本之间的相似度，构建语义搜索系统等
 embedding=OpenAIEmbeddings(
-    api_key="sk-bbvwwuwtsfudwzgkmhfoqqxxybxoypejhpoquwsrtxtizips",
-    base_url="https://api.siliconflow.cn/v1"
+    api_key=api_key,
+    base_url=base_url
 )
 # “BAAI/bge-large-zh-v1.5”模型名称，专门针对中文文本的嵌入任务
 # 创建CustomEmbeddingModel的实例，结合了OpenAi的嵌入模型实例与特定的中文嵌入模型bge
 # 创建的embedding_model实例可以用于将文本转换为向量表示
-embedding_model=CustomEmbeddingModel(embedding,"BAAI/bge-large-zh-v1.5")
+embedding_model=CustomEmbeddingModel(embedding,embedding_model_name)
 # 方式二:需要限制性utils/downloader.py将词嵌入模型存储到本地
 # embedding_model=HuggingFaceBgeEmbeddings(model_name=embedding_model_path)
 

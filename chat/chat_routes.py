@@ -32,7 +32,7 @@ from fastapi.responses import StreamingResponse
 
 chat_router = APIRouter(prefix="/chatbot",  tags=["chatbot managerment"])
 
-# api_key="sk-bbvwwuwtsfudwzgkmhfoqqxxybxoypejhpoquwsrtxtizips"
+# api_key="<set via SILICONFLOW_API_KEY>"
 # base_url="https://api.siliconflow.cn/v1"
 # client=AsyncOpenAI(api_key=api_key,base_url=base_url)
 

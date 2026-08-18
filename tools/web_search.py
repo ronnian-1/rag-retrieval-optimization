@@ -1,7 +1,7 @@
 # 网络搜索API工具
 import requests
 from pydantic import Field
-from configs.settings import TIME_OUT
+from configs.settings import TIME_OUT, serpapi_api_key, web_search_proxy
 
 class WebSearch:
     query: str = Field(description="需要网上查找到内容")
@@ -18,7 +18,7 @@ class WebSearch:
             "api_key": self.api_key,
             "engine": "baidu",
             "rn": 5, #检索结果前五个
-            "proxy": "http://api.wlai.vip" #代理：1.隐藏客户端信息 2.避免收费
+            "proxy": web_search_proxy #代理：1.隐藏客户端信息 2.避免收费
         }
 
         
@@ -39,4 +39,4 @@ class WebSearch:
             return f"无法获取{query}信息"
         
 
-web_search = WebSearch("0c38eac10d9b5c03b6007ece56f6c84372cdf86358e5c780fc4b87ae471ff582")
+web_search = WebSearch(serpapi_api_key)
