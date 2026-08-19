@@ -22,11 +22,15 @@ def _env(name, default=""):
 
 _load_dotenv()
 
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+DEFAULT_SQLITE_DB_PATH = os.path.join(PROJECT_ROOT, "info.db")
+DEFAULT_SQLALCHEMY_DATABASE_URI = f"sqlite:///{DEFAULT_SQLITE_DB_PATH.replace(os.sep, '/')}"
+
 # 知识库信息数据库的路径
-SQLALCHEMY_DATABASE = _env("SQLALCHEMY_DATABASE", "./db_server/data/")
+SQLALCHEMY_DATABASE = _env("SQLALCHEMY_DATABASE", PROJECT_ROOT)
 
 # 知识库信息数据库的URI
-SQLALCHEMY_DATABASE_URI = _env("SQLALCHEMY_DATABASE_URI", "sqlite:///./db_server/data/info.db")
+SQLALCHEMY_DATABASE_URI = _env("SQLALCHEMY_DATABASE_URI", DEFAULT_SQLALCHEMY_DATABASE_URI)
 
 # 存储向量数据库的路径
 KB_DIR = _env("KB_DIR", "./knowledgebases")

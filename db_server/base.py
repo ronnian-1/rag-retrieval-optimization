@@ -2,10 +2,11 @@ import os
 from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from configs.settings import SQLALCHEMY_DATABASE_URI
 
 # 创建数据库引擎，这里使用的是 SQLite. SQLALCHEMY_DATABASE_URI=sqlite:///./db_server/data/info.db
 # echo=True ：可选参数，默认值为 False。True 时，将所有发送到数据库的SQL语句输出到控制台。有助于调试了解数据库操作的细节
-engine = create_engine("sqlite:///./info.db", echo=True)
+engine = create_engine(SQLALCHEMY_DATABASE_URI, echo=True)
 
 # 创建基类，所有模型都将继承自这个基类
 # 当定义一个模型类时，继承这个基类后，SQLAlchemy 会自动将类中的属性映射到表中的列。
@@ -68,3 +69,11 @@ Session = sessionmaker(bind=engine)
 # 这个会话实例 session 是应用程序与数据库之间交互的接口。
 # 它提供了执行数据库操作的方法，例如添加数据、查询数据、提交事务、回滚事务等。方便地操作数据库中的表和数据。
 session = Session()
+
+
+def get_db():
+    db = Session()
+    try:
+        yield db
+    finally:
+        db.close()
