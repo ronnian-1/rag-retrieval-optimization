@@ -35,6 +35,18 @@ kbapp = APIRouter(prefix="/kbs",  tags=["kbs managerment"])
 if not os.path.exists(KB_DIR):
     os.makedirs(KB_DIR)
 
+
+def safe_upload_path(upload_dir, filename):
+    safe_filename = os.path.basename(filename or "")
+    if safe_filename in ("", ".", ".."):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    upload_dir_abs = os.path.abspath(upload_dir)
+    file_path = os.path.abspath(os.path.join(upload_dir_abs, safe_filename))
+    if os.path.commonpath([upload_dir_abs, file_path]) != upload_dir_abs:
+        raise HTTPException(status_code=400, detail="Invalid file path")
+
+    return file_path, safe_filename
 # 创建一个嵌入对象，父类是Embeddings，重写父类两个方法embed_documents和embed_query
 class CustomEmbeddingModel(Embeddings):
     def __init__(self,model,model_name):
@@ -72,7 +84,7 @@ async def create_kb(
 
     # 检查知识库是否存在
     if os.path.exists(kb_path):
-        raise HTTPException(status_ccode=400,detail="知识库已存在")
+        raise HTTPException(status_code=400,detail="知识库已存在")
     
     # 卸磨杀驴环节
     # 创建一个Document对象，初始化文档正文内容和元数据。page_content被设置为"init"，metadate被设置为空字典
@@ -130,7 +142,7 @@ async def upload_docs(
     updated_file=[]
     for file in files:
         # 将文件保存到对应知识库的文件夹中
-        file_path=os.path.join(kb_file_storage_path,file.filename)
+        file_path,safe_filename=safe_upload_path(kb_file_storage_path,file.filename)
         file_content=file.file.read()
 
         with open(file_path,"wb") as f:
@@ -166,7 +178,7 @@ async def upload_docs(
         vectorstore.add_documents(chunks)
         # 保存更新后的知识库
         vectorstore.save_local(kb_path)
-        updated_file.append(file.filename)
+        updated_file.append(safe_filename)
     return {"message":f"File'{updated_file}' added to database '{kb_name}' successfully"}
 
 # 在tools/knowledge_search.py文件中调用

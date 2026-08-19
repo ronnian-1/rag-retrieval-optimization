@@ -19,7 +19,7 @@ from db_server.base import ChatHistory
 
 
 from typing import List
-from fastapi import FastAPI,Body,APIRouter,UploadFile,Form
+from fastapi import FastAPI,Body,APIRouter,UploadFile,Form,HTTPException
 # 同步
 from openai import OpenAI
 # 异步
@@ -36,6 +36,18 @@ chat_router = APIRouter(prefix="/chatbot",  tags=["chatbot managerment"])
 # base_url="https://api.siliconflow.cn/v1"
 # client=AsyncOpenAI(api_key=api_key,base_url=base_url)
 
+
+def safe_upload_path(upload_dir, filename):
+    safe_filename = os.path.basename(filename or "")
+    if safe_filename in ("", ".", ".."):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    upload_dir_abs = os.path.abspath(upload_dir)
+    file_path = os.path.abspath(os.path.join(upload_dir_abs, safe_filename))
+    if os.path.commonpath([upload_dir_abs, file_path]) != upload_dir_abs:
+        raise HTTPException(status_code=400, detail="Invalid file path")
+
+    return file_path
 # 先将传入的文件存储对应用户下的目录
 # 查找当前用户目录下的所有文件，读取内容并返回字符串，包括文件路径和内容
 def files_rag(files,uuid):
@@ -47,7 +59,7 @@ def files_rag(files,uuid):
     if files:
         for file in files:
             # 保存文件到指定路径
-            file_path = os.path.join(kb_file_storage_path,file.filename)
+            file_path = safe_upload_path(kb_file_storage_path,file.filename)
 
             with open(file_path,"wb") as f:
                 f.write(file.file.read())

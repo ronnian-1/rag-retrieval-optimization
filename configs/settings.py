@@ -47,6 +47,7 @@ api_key = _env("SILICONFLOW_API_KEY", _env("OPENAI_API_KEY", ""))
 base_url = _env("SILICONFLOW_BASE_URL", "https://api.siliconflow.cn/v1")
 serpapi_api_key = _env("SERPAPI_API_KEY", "")
 web_search_proxy = _env("WEB_SEARCH_PROXY", "http://api.wlai.vip")
+CORS_ALLOW_ORIGINS = _env("CORS_ALLOW_ORIGINS", "*").split(",")
 
 # 设置超时
 TIME_OUT = int(_env("TIME_OUT", "60"))
