@@ -11,7 +11,7 @@ from langchain.prompts  import SystemMessagePromptTemplate,HumanMessagePromptTem
 from configs.prompt import PROMPT_TEMPLATES
 from configs.settings import chat_model_name,api_key,base_url,TIME_OUT,TEMP_FILE_STORAGE_DIR
 from utils.callback import CustomAsyncIteratorCallbackHandler
-from db_server.base import session
+from db_server.base import session, get_db
 from db_server.knowledge_base_repository import list_kb_from_db
 from tools.code_interpreter import code_interpreter
 from utils.load_docs import get_file_content
@@ -19,7 +19,8 @@ from db_server.base import ChatHistory
 
 
 from typing import List
-from fastapi import FastAPI,Body,APIRouter,UploadFile,Form,HTTPException
+from fastapi import FastAPI,Body,APIRouter,UploadFile,Form,HTTPException,Depends
+from sqlalchemy.orm import Session
 # 同步
 from openai import OpenAI
 # 异步
@@ -84,7 +85,8 @@ async def agent_chat(
     history: List[str] = Form([],description="历史对话"),
     temperature: float = Form(0.5,description="LLM采样温度"),
     max_tokens: int = Form(1024,description="LLM最大token数配置"),
-    session_id: str=Form(None,description="会话表示")
+    session_id: str=Form(None,description="会话表示"),
+    db: Session = Depends(get_db)
 ):
     documents = files_rag(files,session_id)
     # 将字符串形式的Python数据结构安全转换为实际的python数据类型
@@ -137,7 +139,7 @@ async def agent_chat(
         )
 
         # 列出所有知识库
-        knowledgebases = list_kb_from_db(session)
+        knowledgebases = list_kb_from_db(db)
         # 整理成字符串
         kbs = "".join([f"{kb['kb_name']} - {kb['kb_info']} \n" for kb in knowledgebases])
         code_interpreter.output_files,code_interpreter.output_codes = "",""

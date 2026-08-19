@@ -1,6 +1,6 @@
 from db_server.base import ChatHistory, session
 
-def save_chat(session_id, question, answer):
+def save_chat(session_id, question, answer, db):
 
     new_chat = ChatHistory(
         session_id=session_id,
@@ -8,5 +8,5 @@ def save_chat(session_id, question, answer):
         answer=answer
     )
 
-    session.add(new_chat)
-    session.commit()
+    db.add(new_chat)
+    db.commit()
