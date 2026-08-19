@@ -1,11 +1,13 @@
 # Description: 知识库管理API，使用硅基流动Embedding模型和本地FAISS向量存储库进行知识库的创建、删除、文件上传、文件删除、搜索等操作。
-from fastapi import  Body,  APIRouter
+from fastapi import  Body,  APIRouter, Depends
 # from UserBase import session
 # from UserDB import add_user_to_db, del_user_from_db, list_user_from_db
 from db_server.base import session
+from db_server.base import get_db
 from db_server.knowledge_base_repository import add_kb_to_db,del_kb_from_db,list_kb_from_db
 import shutil
 from typing import List
+from sqlalchemy.orm import Session
 
 import jieba
 from langchain_openai import OpenAIEmbeddings
@@ -78,6 +80,7 @@ embedding_model=CustomEmbeddingModel(embedding,embedding_model_name)
 async def create_kb(
         kb_name: str = Body(..., description="知识库名称"),  # Body是FastAPI 中的一个函数，用于从请求体中获取数据。... 表示这个参数是必需的
         kb_info: str = Body(..., description="知识库描述"),  # 函数的默认值是空字符串 ""，description: 提供参数的描述信息，用于生成 API 文档。
+        db: Session = Depends(get_db),
 ):
     # msg = add_kb_to_db(session, kb_name, kb_info)
     kb_path = os.path.join(KB_DIR,f"{kb_name}.faiss")
@@ -100,13 +103,13 @@ async def create_kb(
     # 保存空的知识库，将向量存储保存到本地文件系统
     vector_store.save_local(kb_path)
 
-    add_kb_to_db(session,kb_name,kb_info)
+    add_kb_to_db(db,kb_name,kb_info)
     return {"message":f"知识库‘{kb_name}'创建成功！"}
 
 
 # 删除知识库API
 @kbapp.delete("/delete_kb")
-async def delete_kb(kb_name: str):    
+async def delete_kb(kb_name: str, db: Session = Depends(get_db)):
     kb_path=os.path.join(KB_DIR,f"{kb_name}.faiss")   #KB_DIR="./knowledgebases"
     kb_files_path=os.path.join(FILE_STORAGE_DIR,kb_name)   #FILE_STORAGE_DIR="./data"
     
@@ -120,7 +123,7 @@ async def delete_kb(kb_name: str):
     if os.path.exists(kb_files_path):
         shutil.rmtree(kb_files_path)
 
-    del_kb_from_db(session, kb_name)
+    del_kb_from_db(db, kb_name)
     
     # return msg
     return {"message":f"Database'{kb_name}' deleted successfully"}
@@ -217,8 +220,8 @@ async def search_kb(
 
 # 列出所有知识库的API
 @kbapp.get("/list_kb")
-async def list_kbs():
-    user_list = list_kb_from_db(session)
+async def list_kbs(db: Session = Depends(get_db)):
+    user_list = list_kb_from_db(db)
     result = [user['kb_name'] for user in user_list]
     return result
 
