@@ -1,4 +1,4 @@
-from db_server.base import ChatHistory, session
+from db_server.base import ChatHistory
 
 def save_chat(session_id, question, answer, db):
 

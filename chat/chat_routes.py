@@ -11,7 +11,7 @@ from langchain.prompts  import SystemMessagePromptTemplate,HumanMessagePromptTem
 from configs.prompt import PROMPT_TEMPLATES
 from configs.settings import chat_model_name,api_key,base_url,TIME_OUT,TEMP_FILE_STORAGE_DIR
 from utils.callback import CustomAsyncIteratorCallbackHandler
-from db_server.base import session, get_db
+from db_server.base import get_db
 from db_server.knowledge_base_repository import list_kb_from_db
 from tools.code_interpreter import code_interpreter
 from utils.load_docs import get_file_content

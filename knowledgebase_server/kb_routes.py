@@ -2,7 +2,6 @@
 from fastapi import  Body,  APIRouter, Depends
 # from UserBase import session
 # from UserDB import add_user_to_db, del_user_from_db, list_user_from_db
-from db_server.base import session
 from db_server.base import get_db
 from db_server.knowledge_base_repository import add_kb_to_db,del_kb_from_db,list_kb_from_db
 import shutil
@@ -22,7 +21,6 @@ from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from fastapi import HTTPException,APIRouter,Body,UploadFile,File,Form
-from db_server.base import session
 from db_server.knowledge_base_repository import add_kb_to_db,del_kb_from_db
 from configs.settings import KB_DIR,FILE_STORAGE_DIR,embedding_model_path,api_key,base_url,embedding_model_name
 import os

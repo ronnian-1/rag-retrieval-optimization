@@ -1,4 +1,4 @@
-from db_server.base import User, session
+from db_server.base import User
 import uuid
 
 # def login_user(username):
