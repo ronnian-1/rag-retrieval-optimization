@@ -19,3 +19,6 @@ temp/
 # Local environment freeze
 requirements.txt
 requirements_docker_freeze.txt
+
+# local docker backup
+ai_rag_docker_backup/
