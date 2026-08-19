@@ -22,9 +22,9 @@ import uuid
 
 
 
-def login_user(username):
+def login_user(username, db):
 
-    user = session.query(User).filter(
+    user = db.query(User).filter(
         User.username == username
     ).first()
 
@@ -41,8 +41,8 @@ def login_user(username):
             role=role
         )
 
-        session.add(user)
-        session.commit()
+        db.add(user)
+        db.commit()
 
     return {
         "message": "登录成功",
