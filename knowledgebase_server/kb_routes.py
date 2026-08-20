@@ -249,6 +249,15 @@ async def search_kb(
     )
     # 使用继承检索其执行岔村获取相关上下文
     contexts = ensemble_retriever.invoke(query)
+    seen_context_keys = set()
+    deduplicated_contexts = []
+    for doc in contexts:
+        context_key = (doc.metadata.get("source"), doc.page_content)
+        if context_key in seen_context_keys:
+            continue
+        seen_context_keys.add(context_key)
+        deduplicated_contexts.append(doc)
+    contexts = deduplicated_contexts
     # 将检索到的上下文转化为一个字典，包含上下文的来源和内容
     contexts = {
         "results":[{"source":context.metadata.get("source",""),"page_contents":context.page_content} for context in contexts],
