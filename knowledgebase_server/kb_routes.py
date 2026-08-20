@@ -260,7 +260,7 @@ async def search_kb(
     contexts = deduplicated_contexts
     # 将检索到的上下文转化为一个字典，包含上下文的来源和内容
     contexts = {
-        "results":[{"source":context.metadata.get("source",""),"page_contents":context.page_content} for context in contexts],
+        "results":[{"source":context.metadata.get("source",""),"page_contents":context.page_content,"rank":rank} for rank,context in enumerate(contexts, start=1)],
     }
     return contexts
 
