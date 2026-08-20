@@ -8,7 +8,7 @@ class KnowledgeBaseSearch:
     inputs: str = Field(description="包含知识库名称和需要查询问题的字符串")
 
     def run(self,inputs):
-        kb_name,query = inputs.split(",")
+        kb_name,query = inputs.split(",", 1)
         print(f"==========================",kb_name,query)
         url = "http://127.0.0.1:6605/kbs/search_kb"
 
