@@ -1,0 +1,52 @@
+[
+  {
+    "query": "公司名称是什么？",
+    "expected_filename": "test_kb.txt.txt",
+    "expected_chunk_id": 0
+  },
+  {
+    "query": "星辰科技有限公司成立于什么时候？",
+    "expected_filename": "test_kb.txt.txt",
+    "expected_chunk_id": 0
+  },
+  {
+    "query": "这家公司的主营业务是什么？",
+    "expected_filename": "test_kb.txt.txt",
+    "expected_chunk_id": 0
+  },
+  {
+    "query": "系统采用了什么技术架构？",
+    "expected_filename": "test_kb.txt.txt",
+    "expected_chunk_id": 0
+  },
+  {
+    "query": "RAG架构包含哪些环节？",
+    "expected_filename": "test_kb.txt.txt",
+    "expected_chunk_id": 0
+  },
+  {
+    "query": "系统中 embedding 用于哪个流程？",
+    "expected_filename": "test_kb.txt.txt",
+    "expected_chunk_id": 0
+  },
+  {
+    "query": "系统使用什么向量数据库或向量检索方式？",
+    "expected_filename": "test_kb.txt.txt",
+    "expected_chunk_id": 0
+  },
+  {
+    "query": "系统是否使用 BM25 关键词检索？",
+    "expected_filename": "test_kb.txt.txt",
+    "expected_chunk_id": 0
+  },
+  {
+    "query": "当前知识库文档中提到使用什么数据库？",
+    "expected_filename": "test_kb.txt.txt",
+    "expected_chunk_id": 1
+  },
+  {
+    "query": "研发团队规模是多少人？",
+    "expected_filename": "test_kb.txt.txt",
+    "expected_chunk_id": 1
+  }
+]
