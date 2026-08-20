@@ -186,7 +186,7 @@ async def upload_docs(
         
         # 解析文本文件内容并分割成小块
         # loader=data_loader().get_loader(file_path)
-        loader=TextLoader(file_path,encoding="utf-8")
+        loader=data_loader().get_loader(file_path)
         # 将文档加载为一个文档对象列表
         docs = loader.load()
 
@@ -204,6 +204,12 @@ async def upload_docs(
 
         # 将文档分割成多块
         chunks=text_splitter.split_documents(docs)
+        for idx, chunk in enumerate(chunks):
+            chunk.metadata.update({
+                "kb_name": kb_name,
+                "filename": safe_filename,
+                "chunk_id": idx
+            })
 
         # 加载知识库。load_local加载本地保存到向量数据库
         # embedding_model是一个嵌入模型（Embedding Model），将文本转换为向量
