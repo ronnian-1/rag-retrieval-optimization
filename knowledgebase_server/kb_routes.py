@@ -24,6 +24,7 @@ from fastapi import HTTPException,APIRouter,Body,UploadFile,File,Form
 from db_server.knowledge_base_repository import add_kb_to_db,del_kb_from_db
 from configs.settings import KB_DIR,FILE_STORAGE_DIR,embedding_model_path,api_key,base_url,embedding_model_name
 import os
+import time
 
 from langchain_community.document_loaders import TextLoader
 
@@ -239,22 +240,32 @@ async def search_kb(
     embedding_model = get_embedding_model()
 
     # 加载知识库，允许磁盘反序列化向量的危险操作
+    faiss_load_start = time.time()
     vector_store = FAISS.load_local(kb_path,embedding_model,allow_dangerous_deserialization=True)
+    faiss_load_elapsed = time.time() - faiss_load_start
     # 基于加载到向量存储库创建一个FAISS检索器，检索式返回最近的2
     faiss_retriever = vector_store.as_retriever(search_kwargs={"k":4})
     # 从向量存储库中的文档存储中获取所有文档
+    docstore_start = time.time()
     docs=list(vector_store.docstore._dict.values())
+    docstore_elapsed = time.time() - docstore_start
+    doc_count = len(docs)
     # 基于文档创建一个BM25检索器
+    bm25_start = time.time()
     bm25_retriever = BM25Retriever.from_documents(
         docs,
         preprocess_func=jieba.lcut_for_search)
+    bm25_elapsed = time.time() - bm25_start
     bm25_retriever.k = 4 #设置BM25检索器返回的文档数量
     # 创建一个继承检索器，结合BM25和FAISS检索器的结果
     ensemble_retriever = EnsembleRetriever(
         retrievers=[bm25_retriever,faiss_retriever],weights=[0.5,0.5]
     )
     # 使用继承检索其执行岔村获取相关上下文
+    invoke_start = time.time()
     contexts = ensemble_retriever.invoke(query)
+    invoke_elapsed = time.time() - invoke_start
+    dedup_start = time.time()
     seen_context_keys = set()
     deduplicated_contexts = []
     for doc in contexts:
@@ -264,6 +275,13 @@ async def search_kb(
         seen_context_keys.add(context_key)
         deduplicated_contexts.append(doc)
     contexts = deduplicated_contexts
+    dedup_elapsed = time.time() - dedup_start
+    print(
+        f"[search_kb timing] kb_name={kb_name}, doc_count={doc_count}, "
+        f"faiss_load={faiss_load_elapsed:.4f}s, docstore={docstore_elapsed:.4f}s, "
+        f"bm25_build={bm25_elapsed:.4f}s, invoke={invoke_elapsed:.4f}s, "
+        f"dedup={dedup_elapsed:.4f}s"
+    )
     # 将检索到的上下文转化为一个字典，包含上下文的来源和内容
     contexts = {
         "results":[{"source":context.metadata.get("source",""),"page_contents":context.page_content,"rank":rank,"filename":context.metadata.get("filename"),"chunk_id":context.metadata.get("chunk_id")} for rank,context in enumerate(contexts, start=1)],
