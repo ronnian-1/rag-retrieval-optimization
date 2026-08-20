@@ -59,16 +59,23 @@ class CustomEmbeddingModel(Embeddings):
     def embed_query(self, text):
         return self.model.client.create(model=self.model_name,input=text).data[0].embedding
 
-# openaiembedding类来创建一个嵌入模型实例，用于将文本嵌入为向量
-# 创建的embedding对象可以用于将文本转换为向量表示。这些向量捕捉了文本的语义信息，可以用于计算文本之间的相似度，构建语义搜索系统等
-embedding=OpenAIEmbeddings(
-    api_key=api_key,
-    base_url=base_url
-)
-# “BAAI/bge-large-zh-v1.5”模型名称，专门针对中文文本的嵌入任务
-# 创建CustomEmbeddingModel的实例，结合了OpenAi的嵌入模型实例与特定的中文嵌入模型bge
-# 创建的embedding_model实例可以用于将文本转换为向量表示
-embedding_model=CustomEmbeddingModel(embedding,embedding_model_name)
+_embedding_model = None
+
+
+def get_embedding_model():
+    global _embedding_model
+    if _embedding_model is None:
+        # openaiembedding类来创建一个嵌入模型实例，用于将文本嵌入为向量
+        # 创建的embedding对象可以用于将文本转换为向量表示。这些向量捕捉了文本的语义信息，可以用于计算文本之间的相似度，构建语义搜索系统等
+        embedding = OpenAIEmbeddings(
+            api_key=api_key,
+            base_url=base_url
+        )
+        # “BAAI/bge-large-zh-v1.5”模型名称，专门针对中文文本的嵌入任务
+        # 创建CustomEmbeddingModel的实例，结合了OpenAi的嵌入模型实例与特定的中文嵌入模型bge
+        # 创建的embedding_model实例可以用于将文本转换为向量表示
+        _embedding_model = CustomEmbeddingModel(embedding,embedding_model_name)
+    return _embedding_model
 # 方式二:需要限制性utils/downloader.py将词嵌入模型存储到本地
 # embedding_model=HuggingFaceBgeEmbeddings(model_name=embedding_model_path)
 
@@ -90,6 +97,7 @@ async def create_kb(
     # 卸磨杀驴环节
     # 创建一个Document对象，初始化文档正文内容和元数据。page_content被设置为"init"，metadate被设置为空字典
     doc=Document(page_content="init",metadata={})
+    embedding_model = get_embedding_model()
     vector_store=FAISS.from_documents([doc],embedding_model,normalize_L2=True)
     """使用doc对应的初始文档创建了一个向量存储vector_store,用于为向量存储设置正确的维度与格式"""
     # 获取向量存储中所有文档的ID，并将其存储在列表ids中
@@ -114,6 +122,7 @@ async def delete_kb(kb_name: str, db: Session = Depends(get_db)):
     # 判断知识库是否存在
     if not os.path.exists(kb_path):
         raise HTTPException(status_code=404,detail="Database not found")
+
     
     #删除向量数据库
     shutil.rmtree(kb_path)
@@ -173,6 +182,8 @@ async def upload_docs(
         # 加载知识库。load_local加载本地保存到向量数据库
         # embedding_model是一个嵌入模型（Embedding Model），将文本转换为向量
         # alow_dangerous_deserialization用于是否允许反序列化，有安全风险
+        embedding_model = get_embedding_model()
+        
         vectorstore=FAISS.load_local(kb_path,embedding_model,allow_dangerous_deserialization=True)
 
         # 将文件内容向量化并添加到知识库
@@ -192,7 +203,9 @@ async def search_kb(
 
     if not os.path.exists(kb_path):
         raise HTTPException(status_code=404,detail="Database not found")
-    
+
+    embedding_model = get_embedding_model()
+
     # 加载知识库，允许磁盘反序列化向量的危险操作
     vector_store = FAISS.load_local(kb_path,embedding_model,allow_dangerous_deserialization=True)
     # 基于加载到向量存储库创建一个FAISS检索器，检索式返回最近的2
