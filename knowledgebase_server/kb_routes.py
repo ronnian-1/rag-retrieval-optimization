@@ -235,14 +235,14 @@ async def search_kb(
     # 加载知识库，允许磁盘反序列化向量的危险操作
     vector_store = FAISS.load_local(kb_path,embedding_model,allow_dangerous_deserialization=True)
     # 基于加载到向量存储库创建一个FAISS检索器，检索式返回最近的2
-    faiss_retriever = vector_store.as_retriever(search_kwargs={"k":2})
+    faiss_retriever = vector_store.as_retriever(search_kwargs={"k":4})
     # 从向量存储库中的文档存储中获取所有文档
     docs=list(vector_store.docstore._dict.values())
     # 基于文档创建一个BM25检索器
     bm25_retriever = BM25Retriever.from_documents(
         docs,
         preprocess_func=jieba.lcut_for_search)
-    bm25_retriever.k = 2 #设置BM25检索器返回的文档数量
+    bm25_retriever.k = 4 #设置BM25检索器返回的文档数量
     # 创建一个继承检索器，结合BM25和FAISS检索器的结果
     ensemble_retriever = EnsembleRetriever(
         retrievers=[bm25_retriever,faiss_retriever],weights=[0.5,0.5]
