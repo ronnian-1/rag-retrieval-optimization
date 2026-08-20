@@ -22,3 +22,16 @@ requirements_docker_freeze.txt
 
 # local docker backup
 ai_rag_docker_backup/
+
+# Runtime data
+data/
+
+# Vector indexes
+knowledgebases/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Database
+*.db
