@@ -36,6 +36,32 @@ if not os.path.exists(KB_DIR):
     os.makedirs(KB_DIR)
 
 
+
+def safe_kb_name(kb_name):
+    safe_name = (kb_name or "").strip()
+    if safe_name in ("", ".", ".."):
+        raise HTTPException(status_code=400, detail="Invalid knowledge base name")
+    if os.path.basename(safe_name) != safe_name:
+        raise HTTPException(status_code=400, detail="Invalid knowledge base name")
+    return safe_name
+
+
+def safe_kb_path(kb_name):
+    safe_name = safe_kb_name(kb_name)
+    kb_dir_abs = os.path.abspath(KB_DIR)
+    kb_path = os.path.abspath(os.path.join(kb_dir_abs, f"{safe_name}.faiss"))
+    if os.path.commonpath([kb_dir_abs, kb_path]) != kb_dir_abs:
+        raise HTTPException(status_code=400, detail="Invalid knowledge base name")
+    return kb_path
+
+
+def safe_file_storage_path(kb_name):
+    safe_name = safe_kb_name(kb_name)
+    storage_dir_abs = os.path.abspath(FILE_STORAGE_DIR)
+    storage_path = os.path.abspath(os.path.join(storage_dir_abs, safe_name))
+    if os.path.commonpath([storage_dir_abs, storage_path]) != storage_dir_abs:
+        raise HTTPException(status_code=400, detail="Invalid knowledge base name")
+    return storage_path
 def safe_upload_path(upload_dir, filename):
     safe_filename = os.path.basename(filename or "")
     if safe_filename in ("", ".", ".."):
@@ -88,7 +114,7 @@ async def create_kb(
         db: Session = Depends(get_db),
 ):
     # msg = add_kb_to_db(session, kb_name, kb_info)
-    kb_path = os.path.join(KB_DIR,f"{kb_name}.faiss")
+    kb_path = safe_kb_path(kb_name)
 
     # 检查知识库是否存在
     if os.path.exists(kb_path):
@@ -116,8 +142,8 @@ async def create_kb(
 # 删除知识库API
 @kbapp.delete("/delete_kb")
 async def delete_kb(kb_name: str, db: Session = Depends(get_db)):
-    kb_path=os.path.join(KB_DIR,f"{kb_name}.faiss")   #KB_DIR="./knowledgebases"
-    kb_files_path=os.path.join(FILE_STORAGE_DIR,kb_name)   #FILE_STORAGE_DIR="./data"
+    kb_path=safe_kb_path(kb_name)   #KB_DIR="./knowledgebases"
+    kb_files_path=safe_file_storage_path(kb_name)   #FILE_STORAGE_DIR="./data"
     
     # 判断知识库是否存在
     if not os.path.exists(kb_path):
@@ -142,8 +168,8 @@ async def upload_docs(
     chunk_size:int=Form(128,description="知识库中单段文本最大长度"),
     chunk_overlap:int=Form(20,description="知识库中相邻文本重合长度"),
 ):
-    kb_path=os.path.join(KB_DIR,f"{kb_name}.faiss")   #KB_DIR="./knowledgebases"
-    kb_file_storage_path = os.path.join(FILE_STORAGE_DIR,kb_name)  #FILE_STORAGE_DIR="./data"
+    kb_path=safe_kb_path(kb_name)   #KB_DIR="./knowledgebases"
+    kb_file_storage_path = safe_file_storage_path(kb_name)  #FILE_STORAGE_DIR="./data"
     if not os.path.exists(kb_path):
         raise HTTPException(status_code=404,detail="Database not found")
     
@@ -199,7 +225,7 @@ async def search_kb(
     kb_name: str = Body(...,description="知识库名称"),
     query: str = Body(...,description="问题")
 ):
-    kb_path = os.path.join(KB_DIR,f"{kb_name}.faiss")
+    kb_path = safe_kb_path(kb_name)
 
     if not os.path.exists(kb_path):
         raise HTTPException(status_code=404,detail="Database not found")
