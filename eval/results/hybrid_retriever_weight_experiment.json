@@ -1,0 +1,31 @@
+{
+  "experiment_group": "Phase 4.8.2 Hybrid Retrieval Weight Experiment",
+  "results": [
+    {
+      "experiment_name": "hybrid_retriever_weight_baseline",
+      "retriever_config": {
+        "BM25": 0.5,
+        "FAISS": 0.5
+      },
+      "metrics": {
+        "hit@1": 0.2,
+        "hit@3": 1.0,
+        "recall@3": 1.0,
+        "mrr": 0.6
+      }
+    },
+    {
+      "experiment_name": "hybrid_retriever_weight_optimized",
+      "retriever_config": {
+        "BM25": 0.3,
+        "FAISS": 0.7
+      },
+      "metrics": {
+        "hit@1": 0.9,
+        "hit@3": 1.0,
+        "recall@3": 1.0,
+        "mrr": 0.95
+      }
+    }
+  ]
+}

@@ -259,7 +259,7 @@ async def search_kb(
     bm25_retriever.k = 4 #设置BM25检索器返回的文档数量
     # 创建一个继承检索器，结合BM25和FAISS检索器的结果
     ensemble_retriever = EnsembleRetriever(
-        retrievers=[bm25_retriever,faiss_retriever],weights=[0.5,0.5]
+        retrievers=[bm25_retriever,faiss_retriever],weights=[0.3,0.7]
     )
     # 使用继承检索其执行岔村获取相关上下文
     invoke_start = time.time()
