@@ -25,12 +25,15 @@ from db_server.knowledge_base_repository import add_kb_to_db,del_kb_from_db
 from configs.settings import KB_DIR,FILE_STORAGE_DIR,embedding_model_path,api_key,base_url,embedding_model_name
 import os
 import time
+import tempfile
+import logging
 
 from langchain_community.document_loaders import TextLoader
 
 # app = FastAPI()
 
 kbapp = APIRouter(prefix="/kbs",  tags=["kbs managerment"])
+logger = logging.getLogger(__name__)
 
 # 确保知识库目录存在.KB_DIR="./knowledgebases"
 if not os.path.exists(KB_DIR):
@@ -169,62 +172,180 @@ async def upload_docs(
     chunk_size:int=Form(128,description="知识库中单段文本最大长度"),
     chunk_overlap:int=Form(20,description="知识库中相邻文本重合长度"),
 ):
-    kb_path=safe_kb_path(kb_name)   #KB_DIR="./knowledgebases"
-    kb_file_storage_path = safe_file_storage_path(kb_name)  #FILE_STORAGE_DIR="./data"
+    """Validate the whole batch, skip identical files, and reject name conflicts.
+
+    Catchable commit failures roll back new originals and replaced index files.
+    shortcut: two index files are not a crash-safe transaction; readers can
+    observe a commit in progress. Incomplete rollback keeps recovery files
+    and the upload lock for manual recovery.
+    """
+    if chunk_size <= 0 or not 0 <= chunk_overlap < chunk_size:
+        raise HTTPException(status_code=400, detail="Require chunk_size > 0 and 0 <= chunk_overlap < chunk_size")
+    if not files:
+        raise HTTPException(status_code=400, detail="No files supplied")
+
+    kb_name = safe_kb_name(kb_name)
+    kb_path = safe_kb_path(kb_name)
+    kb_file_storage_path = safe_file_storage_path(kb_name)
     if not os.path.exists(kb_path):
-        raise HTTPException(status_code=404,detail="Database not found")
-    
-    # 检查知识库对应的文件存储文件夹是否存储在，不存在则创建
-    os.makedirs(kb_file_storage_path,exist_ok=True)
-    updated_file=[]
-    for file in files:
-        # 将文件保存到对应知识库的文件夹中
-        file_path,safe_filename=safe_upload_path(kb_file_storage_path,file.filename)
-        file_content=file.file.read()
+        raise HTTPException(status_code=404, detail="Database not found")
 
-        with open(file_path,"wb") as f:
-            f.write(file_content)  #将内容写进去
-        
-        # 解析文本文件内容并分割成小块
-        # loader=data_loader().get_loader(file_path)
-        loader=data_loader().get_loader(file_path)
-        # 将文档加载为一个文档对象列表
-        docs = loader.load()
+    lock_path = kb_path + ".upload.lock"
+    try:
+        with open(lock_path, "x"):
+            pass
+    except FileExistsError:
+        raise HTTPException(status_code=409, detail="Knowledge base upload is busy or requires recovery")
 
-        # 将文本递归分割成制定大小块的工具，通常用于NLP任务中，以便将长文本分割成适合模型处理的小块
-        text_splitter=RecursiveCharacterTextSplitter(chunk_size=chunk_size,chunk_overlap=chunk_overlap,separators=[
-            "\n\n",
-            "\n",
-            " ",
-            ".",
-            ",",
-            "，",
-            "。",
-            ""
-        ])
+    staging_dir = None
+    transaction_state = "preparing"
+    try:
+        incoming = {}
+        skipped_files = []
+        for file in files:
+            file_path, filename = safe_upload_path(kb_file_storage_path, file.filename)
+            extension = os.path.splitext(filename)[1].lower()
+            if extension not in data_loader.supported_extensions:
+                raise HTTPException(status_code=400, detail=f"Unsupported file format: {filename}")
+            content = file.file.read()
+            key = os.path.normcase(file_path)
+            if key in incoming:
+                if incoming[key][2] != content:
+                    raise HTTPException(status_code=409, detail=f"Conflicting contents for filename: {filename}")
+                skipped_files.append(filename)
+                continue
+            exists = os.path.exists(file_path)
+            if exists:
+                with open(file_path, "rb") as original:
+                    if original.read() != content:
+                        raise HTTPException(status_code=409, detail=f"Filename already exists with different content: {filename}")
+            incoming[key] = (file_path, filename, content, exists)
 
-        # 将文档分割成多块
-        chunks=text_splitter.split_documents(docs)
-        for idx, chunk in enumerate(chunks):
-            chunk.metadata.update({
-                "kb_name": kb_name,
-                "filename": safe_filename,
-                "chunk_id": idx
-            })
-
-        # 加载知识库。load_local加载本地保存到向量数据库
-        # embedding_model是一个嵌入模型（Embedding Model），将文本转换为向量
-        # alow_dangerous_deserialization用于是否允许反序列化，有安全风险
         embedding_model = get_embedding_model()
-        
-        vectorstore=FAISS.load_local(kb_path,embedding_model,allow_dangerous_deserialization=True)
+        vectorstore = FAISS.load_local(kb_path, embedding_model, allow_dangerous_deserialization=True)
+        indexed_names = {
+            os.path.normcase(doc.metadata.get("filename", ""))
+            for doc in vectorstore.docstore._dict.values()
+        }
+        pending = []
+        for file_path, filename, content, exists in incoming.values():
+            if os.path.normcase(filename) in indexed_names:
+                if not exists:
+                    raise HTTPException(status_code=409, detail=f"Indexed file has no original; recovery required: {filename}")
+                skipped_files.append(filename)
+            else:
+                pending.append((file_path, filename, content, exists))
 
-        # 将文件内容向量化并添加到知识库
-        vectorstore.add_documents(chunks)
-        # 保存更新后的知识库
-        vectorstore.save_local(kb_path)
-        updated_file.append(safe_filename)
-    return {"message":f"File'{updated_file}' added to database '{kb_name}' successfully"}
+        if not pending:
+            return {"message": "Identical files already indexed; nothing added", "added_files": [], "skipped_files": skipped_files}
+
+        staging_dir = tempfile.mkdtemp(prefix=".upload-", dir=os.path.dirname(kb_path))
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=chunk_size, chunk_overlap=chunk_overlap,
+            separators=["\n\n", "\n", " ", ".", ",", "，", "。", ""]
+        )
+        prepared = []
+        all_chunks = []
+        for i, (file_path, filename, content, exists) in enumerate(pending):
+            staged_file = os.path.join(staging_dir, f"{i}{os.path.splitext(filename)[1]}")
+            with open(staged_file, "wb") as staged:
+                staged.write(content)
+            try:
+                docs = data_loader().get_loader(staged_file).load()
+                chunks = splitter.split_documents(docs)
+            except Exception as exc:
+                raise HTTPException(status_code=400, detail=f"Failed to parse or split file: {filename}") from exc
+            if not chunks or not any(chunk.page_content.strip() for chunk in chunks):
+                raise HTTPException(status_code=400, detail=f"No indexable text in file: {filename}")
+            for idx, chunk in enumerate(chunks):
+                chunk.metadata.update({"source": file_path, "kb_name": kb_name, "filename": filename, "chunk_id": idx})
+            prepared.append((file_path, filename, staged_file, exists))
+            all_chunks.extend(chunks)
+
+        # Prepare the entire batch before touching originals or the live index.
+        vectorstore.add_documents(all_chunks)
+        staged_index = os.path.join(staging_dir, "index")
+        vectorstore.save_local(staged_index)
+        index_files = ("index.faiss", "index.pkl")
+        for name in index_files:
+            shutil.copy2(os.path.join(kb_path, name), os.path.join(staging_dir, name))
+
+        created_files = []
+        attempted_indexes = []
+        creating_file = None
+        try:
+            transaction_state = "committing"
+            os.makedirs(kb_file_storage_path, exist_ok=True)
+            for file_path, filename, staged_file, exists in prepared:
+                if not exists:
+                    creating_file = file_path
+                    try:
+                        original = open(file_path, "xb")
+                    except FileExistsError:
+                        creating_file = None
+                        raise
+                    with original:
+                        created_files.append(file_path)
+                        with open(staged_file, "rb") as staged:
+                            shutil.copyfileobj(staged, original)
+                    creating_file = None
+            for name in index_files:
+                # Record intent first: an interrupt can follow a successful replace.
+                attempted_indexes.append(name)
+                os.replace(os.path.join(staged_index, name), os.path.join(kb_path, name))
+            transaction_state = "committed"
+        except BaseException as exc:
+            transaction_state = "recovery_uncertain"
+            rollback_errors = []
+            interruption = exc if not isinstance(exc, Exception) else None
+            if creating_file is not None and creating_file not in created_files and os.path.exists(creating_file):
+                rollback_errors.append(RuntimeError("Original creation interrupted; ownership uncertain"))
+            for name in reversed(attempted_indexes):
+                try:
+                    if not os.path.exists(os.path.join(staged_index, name)):
+                        os.replace(os.path.join(staging_dir, name), os.path.join(kb_path, name))
+                except BaseException as rollback_exc:
+                    rollback_errors.append(rollback_exc)
+                    if not isinstance(rollback_exc, Exception) and interruption is None:
+                        interruption = rollback_exc
+            for file_path in reversed(created_files):
+                try:
+                    os.remove(file_path)
+                except BaseException as rollback_exc:
+                    rollback_errors.append(rollback_exc)
+                    if not isinstance(rollback_exc, Exception) and interruption is None:
+                        interruption = rollback_exc
+            if rollback_errors:
+                logger.error("Upload rollback incomplete; uploads blocked. Lock: %s; recovery: %s; errors: %r",
+                             lock_path, staging_dir, rollback_errors)
+            else:
+                transaction_state = "rolled_back"
+            if interruption is not None:
+                raise interruption
+            if rollback_errors:
+                raise HTTPException(status_code=500, detail=f"Upload rollback incomplete; uploads blocked. Recovery directory: {staging_dir}") from exc
+            raise HTTPException(status_code=500, detail="Upload commit failed; originals and index rolled back") from exc
+
+        added_files = [item[1] for item in prepared]
+        return {"message": f"File'{added_files}' added to database '{kb_name}' successfully", "added_files": added_files, "skipped_files": skipped_files, "transaction_state": transaction_state}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        detail = "Upload preparation failed; no changes committed" if transaction_state == "preparing" else f"Upload failed; transaction state: {transaction_state}"
+        raise HTTPException(status_code=500, detail=detail) from exc
+    finally:
+        if transaction_state in ("preparing", "committed", "rolled_back"):
+            if staging_dir is not None:
+                try:
+                    shutil.rmtree(staging_dir)
+                except Exception:
+                    logger.exception("Upload recovery cleanup failed; state=%s; recovery=%s", transaction_state, staging_dir)
+            try:
+                os.remove(lock_path)
+            except Exception:
+                logger.exception("Upload lock release failed; state=%s; uploads remain blocked; lock=%s", transaction_state, lock_path)
+        else:
+            logger.error("Upload recovery state uncertain; retaining lock=%s and recovery=%s", lock_path, staging_dir)
 
 # 在tools/knowledge_search.py文件中调用
 @kbapp.post("/search_kb")

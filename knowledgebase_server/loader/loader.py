@@ -6,9 +6,12 @@ from langchain_community.document_loaders import UnstructuredMarkdownLoader
 
 
 class data_loader:
+    supported_extensions = (".txt", ".pdf", ".md", ".csv")
+
     def get_loader(self, file_path):
         # 根据文件格式选择适当的loader
         _, file_extension = os.path.splitext(file_path)
+        file_extension = file_extension.lower()
         if file_extension == ".txt":
             loader = TextLoader(file_path, encoding='utf-8')
         elif file_extension == ".pdf":
